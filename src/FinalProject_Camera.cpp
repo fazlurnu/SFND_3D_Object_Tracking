@@ -74,6 +74,9 @@ int main(int argc, const char *argv[])
     vector<DataFrame> dataBuffer; // list of data frames which are held in memory at the same time
     bool bVis = false;            // visualize results
 
+    double time_detector = 0;
+    double time_descriptor = 0;
+
     /* MAIN LOOP OVER ALL IMAGES */
 
     for (size_t imgIndex = 0; imgIndex <= imgEndIndex - imgStartIndex; imgIndex+=imgStepWidth)
@@ -138,10 +141,6 @@ int main(int argc, const char *argv[])
 
         cout << "#4 : CLUSTER LIDAR POINT CLOUD done" << endl;
         
-        
-        // REMOVE THIS LINE BEFORE PROCEEDING WITH THE FINAL PROJECT
-        continue; // skips directly to the next image without processing what comes beneath
-
         /* DETECT IMAGE KEYPOINTS */
 
         // convert current image to grayscale
@@ -154,11 +153,15 @@ int main(int argc, const char *argv[])
 
         if (detectorType.compare("SHITOMASI") == 0)
         {
-            detKeypointsShiTomasi(keypoints, imgGray, false);
+            time_detector += detKeypointsShiTomasi(keypoints, imgGray, false);
+        }
+        else if(detectorType.compare("HARRIS") == 0)
+        {
+            time_detector += detKeypointsHarris(keypoints, imgGray, false);
         }
         else
         {
-            //...
+            time_detector += detKeypointsModern(keypoints, imgGray, detectorType, false);
         }
 
         // optional : limit number of keypoints (helpful for debugging and learning)
