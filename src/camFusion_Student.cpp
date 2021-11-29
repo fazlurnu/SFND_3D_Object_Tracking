@@ -156,8 +156,96 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
     // ...
 }
 
+bool isInROI(cv::DMatch match, DataFrame dataframe, BoundingBox boundingBox, bool isPrevFrame){
+    // check x position is in ROI
+
+    double frame_x;
+    double frame_y;
+
+    if (isPrevFrame){
+        frame_x = dataframe.keypoints.at(match.queryIdx).pt.x ;
+        frame_y = dataframe.keypoints.at(match.queryIdx).pt.y ;
+    }
+    else{
+        frame_x = dataframe.keypoints.at(match.trainIdx).pt.x ;
+        frame_y = dataframe.keypoints.at(match.trainIdx).pt.y ;
+    }
+
+    if ( frame_x > (boundingBox).roi.x && frame_x < ((boundingBox).roi.x + (boundingBox).roi.width))
+    {
+        // check y position is in ROI
+        if ( (frame_y >(boundingBox).roi.y) && (frame_y < ((boundingBox).roi.y + (boundingBox).roi.height)))
+        {          
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+int findVectorOccurrences(vector<int> value)
+{ 
+    int index = 0;
+    int highest = 0;
+    for (unsigned int a = 0; a < value.size(); a++)
+    {
+        int count = 1;
+        int Position = value.at(a);
+        for (unsigned int b = a + 1; b < value.size(); b++)
+        {
+            if (value.at(b) == Position)
+            {
+                count++;
+            }
+        }
+        if (count >= index)
+        {
+            index = count;
+            highest = Position;
+        }
+    }
+    return highest;
+}
 
 void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bbBestMatches, DataFrame &prevFrame, DataFrame &currFrame)
 {
-    // ...
+    //initialize final result vector
+    vector<vector<int>>final_result(currFrame.boundingBoxes.size());
+
+    int bbox_curr_id = 0;
+    int bbox_prev_id = 0;
+
+    // iterate over matching points in order to create a vector with all distances
+    for(auto match = matches.begin(); match != matches.end(); match++)
+    {   
+        // iterate over the prev frame bounding boxes
+        for(auto prev_frame_bb = prevFrame.boundingBoxes.begin(); prev_frame_bb != prevFrame.boundingBoxes.end(); prev_frame_bb++)
+        {        
+            if(isInROI(*match, prevFrame, *prev_frame_bb, true)){
+                bbox_prev_id = prev_frame_bb->boxID;
+            }
+        }
+        
+        for(auto curr_frame_bb = currFrame.boundingBoxes.begin(); curr_frame_bb != currFrame.boundingBoxes.end(); curr_frame_bb++)
+        {         
+            if(isInROI(*match, currFrame, *curr_frame_bb, false)){
+                bbox_curr_id = curr_frame_bb->boxID;
+            }
+        }
+
+        final_result[bbox_curr_id].push_back(bbox_prev_id);
+      
+    }
+    
+    // storing in bbBestMatches the pairs of the matching bounding boxes < previous , current >
+
+    //cout << "the size of final vector of bbmatches is : " << final_result.size()<<endl;
+    int bbox_current = 0;
+    for(int it4 = 0 ; it4< final_result.size() ; it4++ )
+    {
+        int bBox_matching_prev = findVectorOccurrences(final_result[it4]);
+        bbBestMatches.insert(pair<int, int>(bBox_matching_prev, bbox_current));
+        //cout << bbox_current << ","<< bBox_matching_prev << endl;
+        bbox_current ++;
+    }
 }
