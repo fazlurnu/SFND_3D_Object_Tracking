@@ -149,11 +149,41 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
     // ...
 }
 
+double computeAverageLidarX(std::vector<LidarPoint> &lidarPoints){
+    double average_x = 0;
+
+    for(auto point : lidarPoints){
+        average_x += point.x;
+    }
+
+    average_x /= lidarPoints.size();
+
+    return average_x;
+}
+
+double computeMinLidarX(std::vector<LidarPoint> &lidarPoints){
+    double min_x = 1e12;
+
+    for(auto point : lidarPoints){
+        if(point.x > 0.0 && point.x < min_x){
+            min_x = point.x;
+        }
+    }
+
+    return min_x;
+}
 
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
 {
-    // ...
+    const double dt = 1/frameRate;
+
+    double average_x_prev = computeAverageLidarX(lidarPointsPrev);
+    double average_x_curr = computeAverageLidarX(lidarPointsCurr);
+
+    double min_x_curr = computeMinLidarX(lidarPointsCurr);
+
+    TTC = (min_x_curr * dt) / (average_x_prev - average_x_curr);
 }
 
 bool isInROI(cv::DMatch match, DataFrame dataframe, BoundingBox boundingBox, bool isPrevFrame){

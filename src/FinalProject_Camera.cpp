@@ -79,6 +79,8 @@ int main(int argc, const char *argv[])
 
     /* MAIN LOOP OVER ALL IMAGES */
 
+    int counter = 0;
+    
     for (size_t imgIndex = 0; imgIndex <= imgEndIndex - imgStartIndex; imgIndex+=imgStepWidth)
     {
         /* LOAD IMAGE INTO BUFFER */
@@ -132,12 +134,12 @@ int main(int argc, const char *argv[])
         clusterLidarWithROI((dataBuffer.end()-1)->boundingBoxes, (dataBuffer.end() - 1)->lidarPoints, shrinkFactor, P_rect_00, R_rect_00, RT);
 
         // Visualize 3D objects
-        bVis = true;
-        if(bVis)
-        {
-            show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(2000, 2000), true);
-        }
-        bVis = false;
+        // bVis = true;
+        // if(bVis)
+        // {
+        //     show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(2000, 2000), true);
+        // }
+        // bVis = false;
 
         cout << "#4 : CLUSTER LIDAR POINT CLOUD done" << endl;
         
@@ -195,7 +197,6 @@ int main(int argc, const char *argv[])
 
         cout << "#6 : EXTRACT DESCRIPTORS done" << endl;
 
-
         if (dataBuffer.size() > 1) // wait until at least two images have been processed
         {
 
@@ -227,11 +228,11 @@ int main(int argc, const char *argv[])
             // store matches in current data frame
             (dataBuffer.end()-1)->bbMatches = bbBestMatches;
 
-            cout << "#8 : TRACK 3D OBJECT BOUNDING BOXES done" << endl;
+            cout << "#8 : TRACK 3D OBJECT BOUNDING BOXES done. " << counter << endl;
 
 
             /* COMPUTE TTC ON OBJECT IN FRONT */
-
+            counter++;
             // loop over all BB match pairs
             for (auto it1 = (dataBuffer.end() - 1)->bbMatches.begin(); it1 != (dataBuffer.end() - 1)->bbMatches.end(); ++it1)
             {
@@ -284,11 +285,12 @@ int main(int argc, const char *argv[])
                         string windowName = "Final Results : TTC";
                         cv::namedWindow(windowName, 4);
                         cv::imshow(windowName, visImg);
+                        cv::imwrite("./counter_" + to_string(counter) + ".jpg", visImg);
                         cout << "Press key to continue to next frame" << endl;
-                        cv::waitKey(0);
+                        cv::waitKey(1);
                     }
+                    
                     bVis = false;
-
                 } // eof TTC computation
             } // eof loop over all BB matches            
 
