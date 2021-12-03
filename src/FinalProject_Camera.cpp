@@ -22,6 +22,8 @@
 
 using namespace std;
 
+#define LOGGING (true)
+
 /* MAIN PROGRAM */
 int main(int argc, const char *argv[])
 {
@@ -76,11 +78,55 @@ int main(int argc, const char *argv[])
 
     double time_detector = 0;
     double time_descriptor = 0;
+    uint32_t nb_kpt = 0;
+    int counter = 0;
+    
+    // Feature Detection Parameters
+    string detectorType;
+    string descriptorType;
+    string binary_or_hog;
+
+    if(argc == 1){
+        detectorType = "HARRIS";
+        descriptorType = "BRISK"; // BRIEF, ORB, FREAK, AKAZE, SIFT
+    }
+    else if(argc == 2){
+        detectorType = argv[1];
+    }
+    else if(argc == 3){
+        detectorType = argv[1];
+        descriptorType = argv[2];
+    }
+
+    if(descriptorType == "SIFT")
+    {
+        binary_or_hog = "DES_HOG";
+    }
+    else{
+        binary_or_hog = "DES_BINARY";
+    }
+    // LOG Setup
+    #if LOGGING == true
+        std::stringstream log_file_name;
+        std::ofstream outfile;
+
+        time_t now = time(0);
+        
+        tm *ltm = localtime(&now);
+
+        // print various components of tm structure.
+        log_file_name << "../log/";
+        log_file_name << detectorType << "_";
+        log_file_name << descriptorType;
+        log_file_name << ".txt";
+        
+        outfile.open(log_file_name.str(), std::ios_base::app);
+
+        outfile << "frame,ttc_lidar,ttc_camera,kpt_detected,exec_time" << endl;
+    #endif
 
     /* MAIN LOOP OVER ALL IMAGES */
 
-    int counter = 0;
-    
     for (size_t imgIndex = 0; imgIndex <= imgEndIndex - imgStartIndex; imgIndex+=imgStepWidth)
     {
         /* LOAD IMAGE INTO BUFFER */
@@ -151,19 +197,18 @@ int main(int argc, const char *argv[])
 
         // extract 2D keypoints from current image
         vector<cv::KeyPoint> keypoints; // create empty feature list for current image
-        string detectorType = "SHITOMASI";
 
         if (detectorType.compare("SHITOMASI") == 0)
         {
-            time_detector += detKeypointsShiTomasi(keypoints, imgGray, false);
+            time_detector = detKeypointsShiTomasi(keypoints, imgGray, false);
         }
         else if(detectorType.compare("HARRIS") == 0)
         {
-            time_detector += detKeypointsHarris(keypoints, imgGray, false);
+            time_detector = detKeypointsHarris(keypoints, imgGray, false);
         }
         else
         {
-            time_detector += detKeypointsModern(keypoints, imgGray, detectorType, false);
+            time_detector = detKeypointsModern(keypoints, imgGray, detectorType, false);
         }
 
         // optional : limit number of keypoints (helpful for debugging and learning)
@@ -189,8 +234,7 @@ int main(int argc, const char *argv[])
         /* EXTRACT KEYPOINT DESCRIPTORS */
 
         cv::Mat descriptors;
-        string descriptorType = "BRISK"; // BRISK, BRIEF, ORB, FREAK, AKAZE, SIFT
-        descKeypoints((dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->cameraImg, descriptors, descriptorType);
+        time_descriptor = descKeypoints((dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->cameraImg, descriptors, descriptorType);
 
         // push descriptors for current frame to end of data buffer
         (dataBuffer.end() - 1)->descriptors = descriptors;
@@ -204,12 +248,11 @@ int main(int argc, const char *argv[])
 
             vector<cv::DMatch> matches;
             string matcherType = "MAT_BF";        // MAT_BF, MAT_FLANN
-            string descriptorType = "DES_BINARY"; // DES_BINARY, DES_HOG
             string selectorType = "SEL_NN";       // SEL_NN, SEL_KNN
 
-            matchDescriptors((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints,
+            nb_kpt = matchDescriptors((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints,
                              (dataBuffer.end() - 2)->descriptors, (dataBuffer.end() - 1)->descriptors,
-                             matches, descriptorType, matcherType, selectorType);
+                             matches, binary_or_hog, matcherType, selectorType);
 
             // store matches in current data frame
             (dataBuffer.end() - 1)->kptMatches = matches;
@@ -263,6 +306,7 @@ int main(int argc, const char *argv[])
                     computeTTCLidar(prevBB->lidarPoints, currBB->lidarPoints, sensorFrameRate, ttcLidar);
                     //// EOF STUDENT ASSIGNMENT
 
+
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.3 -> assign enclosed keypoint matches to bounding box (implement -> clusterKptMatchesWithROI)
                     //// TASK FP.4 -> compute time-to-collision based on camera (implement -> computeTTCCamera)
@@ -270,6 +314,16 @@ int main(int argc, const char *argv[])
                     clusterKptMatchesWithROI(*currBB, (dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->kptMatches);                    
                     computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
                     //// EOF STUDENT ASSIGNMENT
+
+                    #if LOGGING == true
+                        outfile << counter << ",";
+                        outfile << ttcLidar << ",";
+                        outfile << ttcCamera << ",";
+                        outfile << nb_kpt << ",";
+                        outfile << time_detector << ",";
+                        outfile << time_descriptor << ",";
+                        outfile << endl;
+                    #endif
 
                     bVis = true;
                     if (bVis)
@@ -285,7 +339,7 @@ int main(int argc, const char *argv[])
                         string windowName = "Final Results : TTC";
                         cv::namedWindow(windowName, 4);
                         cv::imshow(windowName, visImg);
-                        cv::imwrite("./counter_" + to_string(counter) + ".jpg", visImg);
+                        cv::imwrite("../images/results/" + detectorType + "_" + descriptorType + "_" + to_string(counter) + ".jpg", visImg);
                         cout << "Press key to continue to next frame" << endl;
                         cv::waitKey(1);
                     }

@@ -138,38 +138,43 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 // associate a given bounding box with the keypoints it contains
 void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, std::vector<cv::DMatch> &kptMatches)
 {
-    // calculate mean point match distance in this bbox
-    double distance_average = 0.0;
-    int nb_of_point = 0;
-    float threshold = 0.25;
-
-    for (auto kpMatch = kptMatches.begin(); kpMatch != kptMatches.end(); ++kpMatch)
+    vector<double> DistanceEuclideanCoord;
+    
+    // iterating over matching points in order to create a vector with all distances
+    for(auto it1 = kptMatches.begin(); it1 != kptMatches.end(); it1++)
     {
-        cv::KeyPoint curr_pnt = kptsCurr[kpMatch->trainIdx];
-        cv::KeyPoint prev_pnt = kptsPrev[kpMatch->queryIdx];
-
-        if (boundingBox.roi.contains(curr_pnt.pt))
-        {
-            distance_average += cv::norm(curr_pnt.pt - prev_pnt.pt);
-            nb_of_point += 1;
+        if(boundingBox.roi.contains(kptsCurr.at(it1->trainIdx).pt)) // checking if the keypoint is inside of the bounding box of the current frame.
+        { 
+            // calculating euclidean Distance with opencv function for each matched points
+            DistanceEuclideanCoord.push_back(cv::norm(kptsCurr.at(it1->trainIdx).pt - kptsPrev.at(it1->queryIdx).pt)); 
         }
     }
-    distance_average /= nb_of_point;
 
-    // filter point match based on point match distance
-    for (auto kpMatch = kptMatches.begin(); kpMatch != kptMatches.end(); ++kpMatch)
+
+
+    // calculating mean and standar deviation.
+    double sum = accumulate(begin(DistanceEuclideanCoord), end(DistanceEuclideanCoord), 0.0);
+    double m =  sum / DistanceEuclideanCoord.size();
+    
+    double accum = 0.0;
+    for_each (begin(DistanceEuclideanCoord), std::end(DistanceEuclideanCoord),[&](const double d){accum += (d - m) * (d - m);});
+    double stdev = sqrt(accum / (DistanceEuclideanCoord.size()-1));
+
+    double min_acceptable_value = m - stdev;
+    double max_acceptable_value = m + stdev;
+
+    // removing outliers and pushing the acceptable values to bounding boxes of the current frame.
+    for(auto it2 = kptMatches.begin(); it2 != kptMatches.end(); it2++)
     {
-        cv::KeyPoint curr_pnt = kptsCurr[kpMatch->trainIdx];
-        cv::KeyPoint prev_pnt = kptsPrev[kpMatch->queryIdx];
+        if(boundingBox.roi.contains(kptsCurr.at(it2->trainIdx).pt)) // checking if the keypoint is inside of the bounding box of the current frame.
+        { 
+            // calculating euclidean Distance with opencv function for each matched points
+            double points_distance = cv::norm(kptsCurr.at(it2->trainIdx).pt - kptsPrev.at(it2->queryIdx).pt);
 
-        if (boundingBox.roi.contains(curr_pnt.pt))
-        {
-            double curr_dist = cv::norm(curr_pnt.pt - prev_pnt.pt);
-
-            if (curr_dist > distance_average * (1-threshold) && curr_dist < distance_average * (1+threshold))
+            if (( points_distance > min_acceptable_value ) && ( points_distance < max_acceptable_value))
             {
-                boundingBox.keypoints.push_back(curr_pnt);
-                boundingBox.kptMatches.push_back(*kpMatch);
+                boundingBox.kptMatches.push_back(*it2);
+                boundingBox.keypoints.push_back(kptsCurr.at(it2->trainIdx));
             }
         }
     }
@@ -180,7 +185,79 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint
 void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, 
                       std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg)
 {
-    // ...
+    vector <double> filtered_dist_ratio;
+    // compute distance ratios between all matched keypoints
+    vector<double> distRatios; // stores the distance ratios for all keypoints between curr. and prev. frame
+    for (auto it1 = kptMatches.begin(); it1 != kptMatches.end() - 1; ++it1)
+    { // outer kpt. loop
+
+        // get current keypoint and its matched partner in the prev. frame
+        cv::KeyPoint kpOuterCurr = kptsCurr.at(it1->trainIdx);
+        cv::KeyPoint kpOuterPrev = kptsPrev.at(it1->queryIdx);
+
+        for (auto it2 = kptMatches.begin() + 1; it2 != kptMatches.end(); ++it2)
+        { // inner kpt.-loop
+
+            double minDist = 100.0; // min. required distance
+
+            // get next keypoint and its matched partner in the prev. frame
+            cv::KeyPoint kpInnerCurr = kptsCurr.at(it2->trainIdx);
+            cv::KeyPoint kpInnerPrev = kptsPrev.at(it2->queryIdx);
+
+            // compute distances and distance ratios
+            double distCurr = cv::norm(kpOuterCurr.pt - kpInnerCurr.pt);
+            double distPrev = cv::norm(kpOuterPrev.pt - kpInnerPrev.pt);
+
+            if (distPrev > std::numeric_limits<double>::epsilon() && distCurr >= minDist)
+            { // avoid division by zero
+
+                double distRatio = distCurr / distPrev;
+                distRatios.push_back(distRatio);
+            }
+        } // eof inner loop over all matched kpts
+    }     // eof outer loop over all matched kpts
+
+    // only continue if list of distance ratios is not empty
+    if (distRatios.size() == 0)
+    {
+        TTC = NAN;
+        return;
+    }
+
+    // calculating mean and standar deviation.
+    double sum = accumulate(begin(distRatios), end(distRatios), 0.0);
+    double m =  sum / distRatios.size();
+    
+    double accum = 0.0;
+    for_each (begin(distRatios), std::end(distRatios),[&](const double d){accum += (d - m) * (d - m);});
+    double stdev = sqrt(accum / (distRatios.size()-1));
+
+    double min_acceptable_value = m - stdev;
+    double max_acceptable_value = m + stdev;
+
+    
+    for (int it3 = 0 ; it3 < distRatios.size(); ++it3)
+    {
+        if ((distRatios[it3]>min_acceptable_value) && ( distRatios[it3] < max_acceptable_value))
+        {
+            filtered_dist_ratio.push_back(distRatios[it3]);
+        }
+    }
+    if (filtered_dist_ratio.size() == 0)
+    {
+        TTC = NAN;
+        return;
+    }  	
+    std::sort(filtered_dist_ratio.begin(), filtered_dist_ratio.end());
+    long medIndex = floor(filtered_dist_ratio.size() / 2.0);
+    // compute median dist. ratio to remove outlier influence over the Filtered distance ratio vector.
+    double medDistRatio = filtered_dist_ratio.size() % 2 == 0 ? (filtered_dist_ratio[medIndex - 1] + filtered_dist_ratio[medIndex]) / 2.0 : filtered_dist_ratio[medIndex];
+    // compute median dist. ratio to remove outlier influence
+    
+
+    double dT = 1 / frameRate;
+    TTC = -dT / (1 - medDistRatio);
+    // EOF STUDENT TASK
 }
 
 double computeAverageLidarX(std::vector<LidarPoint> &lidarPoints){
