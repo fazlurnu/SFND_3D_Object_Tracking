@@ -46,6 +46,27 @@ Once keypoint matches have been added to the bounding boxes, the next step is to
 
 The task is solved by iterating through `Matches` vector and calculate the distance of the each current point. If the distance is greater than the minimum acceptable value, we get a distance ratio. Then, we calculate the mean and standard deviation to have a filtered distance ratio. At the end, a median value from the `filtered_dist_ratio` is used to calculate to TTC.
 
+## FP.5: Performance Evaluation 1
+This exercise is about conducting tests with the final project code, especially with regard to the Lidar part. Look for several examples where you have the impression that the Lidar-based TTC estimate is way off. Once you have found those, describe your observations and provide a sound argumentation why you think this happened.
+
+Figure below shows the TTC Lidar results. We can see that a significant increment happens in frame 3 and 17 when in fact the detected is not speeding up. This can happen due to environment condition such as pitch or bouncing of the ego vehicle or change of luminance of the preceeding car causing sensor noise.
+
+<img src="images/TTC Lidar.png"/>
+
+## FP.6: Performance Evaluation 2
+This last exercise is about running the different detector / descriptor combinations and looking at the differences in TTC estimation. Find out which methods perform best and also include several examples where camera-based TTC estimation is way off. As with Lidar, describe your observations again and also look into potential reasons. This is the last task in the final project.
+
+The results from the TTC Camera is shown below.
+
+<img src="images/TTC Camera - AKAZE.png"/>
+<img src="images/TTC Camera - BRISK.png"/>
+<img src="images/TTC Camera - FAST.png"/>
+<img src="images/TTC Camera - HARRIS.png"/>
+<img src="images/TTC Camera - ORB.png"/>
+<img src="images/TTC Camera - SIFT.png"/>
+
+We can see that there are a lot of measurements that are off from the Lidar measurement. This is possible due to environment condition in which particular algorithms do not work best. Some of the reliable detector are AKAZE and FAST. It is reliable because it has lowest error with respect to the Lidar measurement.
+
 ## Dependencies for Running Locally
 * cmake >= 2.8
   * All OSes: [click here for installation instructions](https://cmake.org/install/)
