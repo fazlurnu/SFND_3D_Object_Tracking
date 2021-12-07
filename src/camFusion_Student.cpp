@@ -260,6 +260,20 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
     // EOF STUDENT TASK
 }
 
+double computeMedianLidarX(std::vector<LidarPoint> &lidarPoints){
+    vector<double> lidarPointsX;
+
+    for (auto point : lidarPoints){
+        lidarPointsX.push_back(point.x);
+    }
+
+    std::sort(lidarPointsX.begin(), lidarPointsX.end());
+    long medIndex = floor(lidarPointsX.size() / 2.0);
+    double median_lidar_points_x = lidarPointsX.size() % 2 == 0 ? (lidarPointsX[medIndex - 1] + lidarPointsX[medIndex]) / 2.0 : lidarPointsX[medIndex];
+
+    return median_lidar_points_x;
+}
+
 double computeAverageLidarX(std::vector<LidarPoint> &lidarPoints){
     double average_x = 0;
 
@@ -289,12 +303,14 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
 {
     const double dt = 1/frameRate;
 
+    vector<double> distRatios; // stores the distance ratios for all keypoints between curr. and prev. frame
+
     double average_x_prev = computeAverageLidarX(lidarPointsPrev);
     double average_x_curr = computeAverageLidarX(lidarPointsCurr);
 
-    double min_x_curr = computeMinLidarX(lidarPointsCurr);
+    double median_x_curr = computeMedianLidarX(lidarPointsCurr);
 
-    TTC = (min_x_curr * dt) / (average_x_prev - average_x_curr);
+    TTC = (median_x_curr * dt) / (average_x_prev - average_x_curr);
 }
 
 bool isInROI(cv::DMatch match, DataFrame dataframe, BoundingBox boundingBox, bool isPrevFrame){
