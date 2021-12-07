@@ -51,7 +51,7 @@ This exercise is about conducting tests with the final project code, especially 
 
 Figure below shows the TTC Lidar results. We can see that a significant increment happens in frame 3 and 17 when in fact the detected is not speeding up. This can happen due to environment condition such as pitch or bouncing of the ego vehicle or change of luminance of the preceeding car causing sensor noise.
 
-<img src="images/TTC Lidar.png"/>
+<img src="images/TTC Lidar MinMed.png"/>
 
 ## FP.6: Performance Evaluation 2
 This last exercise is about running the different detector / descriptor combinations and looking at the differences in TTC estimation. Find out which methods perform best and also include several examples where camera-based TTC estimation is way off. As with Lidar, describe your observations again and also look into potential reasons. This is the last task in the final project.
